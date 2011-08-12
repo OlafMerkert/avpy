@@ -4,10 +4,8 @@
 __author__ = "Olaf Merkert"
 
 from PyQt4 import QtGui
+from common import Unimplemented
 
-# TODO Bewege dies zu einer gemeinsamen Position
-class Unimplemented (object):
-    pass
 
 class InputBase(object):
     """
