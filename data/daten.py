@@ -5,6 +5,7 @@ from __future__ import with_statement
 __author__ = "Olaf Merkert"
 
 
+from os.path import exists
 import cPickle as pickle
 import models
 
@@ -62,11 +63,14 @@ def load(store = default_store):
             return dct[key]
         else:
             return []
-    with open(store, 'rb') as input:
-        data = pickle.load(input)
-        taetigkeiten.load(get_if_present("taet", data))
-        assistenten.load(get_if_present("ass", data))
-    return data
+    if exists(store):
+        with open(store, 'rb') as input:
+            data = pickle.load(input)
+            taetigkeiten.load(get_if_present("taet", data))
+            assistenten.load(get_if_present("ass", data))
+    else:
+        taetigkeiten.load([])
+        assistenten.load([])
 
 def save(store = default_store):
     with open(store, 'wb') as output:
