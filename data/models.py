@@ -27,6 +27,15 @@ class Taetigkeit(object):
         self._termin = termin
         self._bemerkung = bemerkung
 
+    def get_titel(self):
+        return self._titel
+
+    def get_dozent(self):
+        return self._dozent
+
+    def get_bedarf(self):
+        return self._bedarf._upper
+    
 class Wunsch(object):
     """
     Mit verschiedenem Nachdruck kann man die gewuenschten
@@ -64,6 +73,16 @@ class Assistent(object):
     def wuenschen(self, taetigkeit, staerke):
         self._wuensche.add(
             Wunsch(self, taetigkeit, staerke))
+
+    def __repr__(self):
+        return "{0} [{1}]".format(self._name, self._bedarf._upper)
+
+    # Accessors
+    def get_name(self):
+        return self._name
+    def get_bedarf(self):
+        return self._bedarf._upper
+    
 
 class Zuweisung(object):
     """

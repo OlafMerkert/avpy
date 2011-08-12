@@ -36,6 +36,12 @@ class Collector(object):
     def __iter__(self):
         return iter(self._list)
 
+    def __len__(self):
+        return len(self._list)
+
+    def __getitem__(self, key):
+        return self._list[key]
+
     def save(self):
         return self._list
 
