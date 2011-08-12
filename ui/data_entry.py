@@ -58,6 +58,9 @@ class SaveNextDialog (QtGui.QWidget):
         # Stecke die Box ans Ende
         self.layout().addStretch()
         self.layout().addWidget(self._button_box)
+        # Erlaube, den "next" Button zu verstecken, falls man die
+        # Formulare zum Editieren verwenden will.
+        self.hide_next = _next.hide
 
 class EntryFormDialog (SaveNextDialog):
     """
@@ -68,14 +71,17 @@ class EntryFormDialog (SaveNextDialog):
 
     def __init__(self, title, form_elements):
         SaveNextDialog.__init__(self)
-        self.setWindowTitle(title)
-        self._form.setTitle(title)
+        self.setTitle(title)
         self.setup_inputs(form_elements)
         self.save_signal.connect(self.on_save)
         self.close_signal.connect(self.on_close)
         # Damit der Dialog nicht geschlossen wird, bevor alle Daten
         # ausgelesen sind, brauchen wir ein kleines Lock.
         self.close_lock = QtCore.QMutex()
+
+    def setTitle(self, title):
+        self.setWindowTitle(title)
+        self._form.setTitle(title)
 
     def setupUi(self):
         # Die Eingabefelder kommen in eine GroupBox.  Der Titel wird

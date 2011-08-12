@@ -34,7 +34,7 @@ class Collector(object):
         self._list = []
 
     def __iter__(self):
-        return self._list
+        return iter(self._list)
 
     def save(self):
         return self._list
