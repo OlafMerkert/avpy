@@ -12,10 +12,11 @@ import models
 # Listen für die Speicherung der Vorlesungen und Assistenten sowie
 # ihrer Wünsche
 
-# TODO Eigene Datenstruktur für diese Listen?
+# TODO Versehe dieses mit Signalen und Slots, um Änderungen in der Datenstruktur vermelden zu können.
 class Collector(object):
     """
-    Halte eine Liste/Menge von Objekten vor.
+    Halte eine Liste/Menge von Objekten vor.  Die Schnittstelle nach
+    außen ist wesentlich die einer normalen Liste.
     """
     
     def __init__(self):
@@ -24,8 +25,8 @@ class Collector(object):
     def add(self, item):
         self._list.append(item)
 
-    def rem(self, item):
-        self._list.rem(item)
+    def remove(self, item):
+        self._list.remove(item)
 
     def load(self, liste):
         self._list = liste
@@ -62,7 +63,9 @@ bereiche = [
 
 default_store = "/tmp/avpy.bin"
 
-
+# TODO Abspeichern sollte auf transparente Art von der Anwendung her
+# passieren können.  Wenn explizite Aufrufe irgendwo mitten im Code
+# passieren, ist das etwas suboptimal.
 def load(store = default_store):
     def get_if_present(key, dct):
         if key in dct:

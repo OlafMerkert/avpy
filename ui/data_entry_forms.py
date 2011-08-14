@@ -9,6 +9,8 @@ from inputs import StringInput, IntegerInput, SelectInput, generate_labels
 from data.models import Assistent, Taetigkeit, Bound
 from data import daten
 
+# ----------------------------------------------------------------------
+
 class AssistentEntry (EntryFormDialog):
 
     def __init__(self):
