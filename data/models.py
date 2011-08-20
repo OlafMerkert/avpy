@@ -35,6 +35,9 @@ class Taetigkeit(object):
 
     def get_bedarf(self):
         return self._bedarf._upper
+
+    def __repr__(self):
+        return "{0} - {1} [{2}]".format(self._titel, self._dozent, self._bedarf._upper)
     
 class Wunsch(object):
     """
@@ -58,6 +61,15 @@ class Wunsch(object):
         return (4 - self._staerke)**2
 
 
+    def get_assistant(self):
+        return self._assistant.get_name()
+
+    def get_taetigkeit(self):
+        return self._taetigkeit.get_titel()
+
+    def get_staerke(self):
+        return self._staerke
+    
 
 class Assistent(object):
     """
@@ -82,6 +94,9 @@ class Assistent(object):
         return self._name
     def get_bedarf(self):
         return self._bedarf._upper
+
+    def get_wuensche(self):
+        return self._wuensche
     
 
 class Zuweisung(object):
