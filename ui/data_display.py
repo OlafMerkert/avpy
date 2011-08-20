@@ -24,28 +24,20 @@ class ObjectListModel (QtCore.QAbstractItemModel):
     TODO
     """
 
-    def __init__(self, header, *data):
-        # TODO
-
-    def get_obj_abs(self, *rows):
-        """
-        TODO
-        """
-        lst = self.get_lst_abs(rows[:-1])
-        return lst[rows[-1]]
-
-    def get_acc_abs(self, n):
-        """
-        TODO
-        """
-        node = self.accessor_tree
-        for i in xrange(n):p
-            if len(node) >= 3:
-                node = AccessorNode._make(node.child)
+    def __init__(self, header, *tree):
+        QtCore.QAbstractItemModel.__init__(self)
+        self._header = header
+        def transform_tree(t):
+            if t:
+                if len(t) < 3:
+                    t.append(None)
+                else:
+                    t[2] = transform_tree(t[2])
+                return AccessorNode._make(t)
             else:
-                raise InvalidTreeAdress
-        return node.accessors
-        
+                return None
+        self.accessor_tree = transform_tree(list(tree))
+
 
     def rowCount(self, parent = QtCore.QModelIndex()):
         if not parent.isValid():
@@ -55,14 +47,15 @@ class ObjectListModel (QtCore.QAbstractItemModel):
         elif parent.child:
             # An einem Knoten mit Kindchen
             node = parent.internalPointer()
-            lst = node.child(node.object)
+            lst = node.child.list(node.object)
             return len(lst)
         else:
             return 0
 
     def columnCount(self, parent = QtCore.QModelIndex()):
         if not parent.isValid():
-            return len(self.get_acc_abs(0))
+            node = self.accessor_tree
+            return len(node.accessors)
         elif parent.child:
             node = parent.internalPointer()
             return len(node.accessors)
@@ -75,16 +68,20 @@ class ObjectListModel (QtCore.QAbstractItemModel):
             # An der Wurzel
             node = self.accessor_tree
             return self.createIndex(row, column,
-                                    IndexNode(object=node.list()[row],
+                                    IndexNode(object=node.list(True)[row],
                                               accessors=node.accessors,
                                               child=node.child,
                                               parent=parent))
         else:
-            node = parent.internalPointer()
-            return self.createIndex(row, column,
-                                    IndexNode(object=node.
-        else:
-            return QtCore.QModelIndex()
+            node = parent.internalPointer() # this is an IndexNode
+            if node.child and parent.column() == 0: # either is None or an AccessorNode
+                return self.createIndex(row, column,
+                                    IndexNode(object=node.child.list(node.object)[row],
+                                              accessors=node.child.accessors,
+                                              child=node.child.child,
+                                              parent=parent))
+            else:
+                return QtCore.QModelIndex()
     
     # @ensureValid(1)
     def parent(self, child):
@@ -95,16 +92,15 @@ class ObjectListModel (QtCore.QAbstractItemModel):
 
     def data(self, index, role = Qt.DisplayRole):
         if index.isValid() and role == Qt.DisplayRole:
-            i = index.row()
-            j = index.column()
-            return self._accessors[j](self._lst[i])
+            node = index.internalPointer()
+            return node.accessors[index.column()](node.object)
         else:
             return None
 
     def data_raw(self, index):
         if index.isValid():
-            i = index.row()
-            return self._lst[i]
+            node = index.internalPointer()
+            return node.object
         else:
             return None
 
@@ -121,6 +117,13 @@ class ObjectListModel (QtCore.QAbstractItemModel):
             return None
     # TODO Benachrichtigung über Änderungen
 
+    def attach_collection(self, collector):
+        # @pyqtSlot()
+        # def update():
+        #     self.dataChanged.emit(QtCore.QModelIndex(), QtCore.QModelIndex())
+        # collector.change_signal.connect(update)
+        pass
+    
 # TODO Das hier sollte noch verbessert werden können (Zeige
 # Assistenten zu Vorlesungen und umgekehrt ...)
 
@@ -149,10 +152,11 @@ class AssistentenTabelle (EinfacheTabelle):
                 lambda x: daten.assistenten,
                 [Assistent.get_name,
                  Assistent.get_bedarf],
-                (Assistent.get_wuensche,
-                 [Wunsch.get_taetigkeit])
+                [Assistent.get_wuensche,
+                 [Wunsch.get_taetigkeit]]
                 )
             )
+        self.model().attach_collection(daten.assistenten)
 
 class TaetigkeitenTabelle (EinfacheTabelle):
 
@@ -169,6 +173,7 @@ class TaetigkeitenTabelle (EinfacheTabelle):
                  Taetigkeit.get_bedarf],
                 )
             )
+        self.model().attach_collection(daten.taetigkeiten)
 
                           
 # Datenerfassungsansicht

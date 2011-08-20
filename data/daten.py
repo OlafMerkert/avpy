@@ -18,6 +18,9 @@ class Collector(object):
     Halte eine Liste/Menge von Objekten vor.  Die Schnittstelle nach
     außen ist wesentlich die einer normalen Liste.
     """
+
+    def notify_changes(self):
+        pass
     
     def __init__(self):
         self._list = []
