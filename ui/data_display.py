@@ -8,42 +8,90 @@ from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
 from common import Unimplemented
 import data.daten as daten
-from data.models import Assistent, Taetigkeit
+from data.models import Assistent, Taetigkeit, Wunsch
 import ui.data_entry_forms as forms
+from collections import namedtuple
+
+class InvalidTreeAdress:
+    pass
+
+AccessorNode = namedtuple("AccessorNode", "list accessors child")
+
+IndexNode = namedtuple("IndexNode", "object accessors child parent")
 
 class ObjectListModel (QtCore.QAbstractItemModel):
     """
-    Die Zeilen entsprechen den Einträgen von lst, die Spalten
-    Accessor-Funktionen für Objekte.
+    TODO
     """
 
-    def __init__(self, lst, accessors):
-        QtCore.QAbstractItemModel.__init__(self)
-        self._lst       = lst
-        self._header    = [a[0] for a in accessors]
-        self._accessors = [a[1] for a in accessors]
+    def __init__(self, header, *data):
+        # TODO
+
+    def get_obj_abs(self, *rows):
+        """
+        TODO
+        """
+        lst = self.get_lst_abs(rows[:-1])
+        return lst[rows[-1]]
+
+    def get_acc_abs(self, n):
+        """
+        TODO
+        """
+        node = self.accessor_tree
+        for i in xrange(n):p
+            if len(node) >= 3:
+                node = AccessorNode._make(node.child)
+            else:
+                raise InvalidTreeAdress
+        return node.accessors
+        
 
     def rowCount(self, parent = QtCore.QModelIndex()):
         if not parent.isValid():
-            return len(self._lst)
+            # An der Wurzel
+            lst = self.accessor_tree.list(None)
+            return len(lst)
+        elif parent.child:
+            # An einem Knoten mit Kindchen
+            node = parent.internalPointer()
+            lst = node.child(node.object)
+            return len(lst)
         else:
             return 0
 
     def columnCount(self, parent = QtCore.QModelIndex()):
         if not parent.isValid():
-            return len(self._accessors)
+            return len(self.get_acc_abs(0))
+        elif parent.child:
+            node = parent.internalPointer()
+            return len(node.accessors)
         else:
             return 0
 
+    # @ensureValid(3)
     def index(self, row, column, parent = QtCore.QModelIndex()):
-        if (0 <= row < len(self._lst) and
-            0 <= column < len(self._accessors)):
-            return self.createIndex(row, column, self._lst[row])
+        if not parent.isValid():
+            # An der Wurzel
+            node = self.accessor_tree
+            return self.createIndex(row, column,
+                                    IndexNode(object=node.list()[row],
+                                              accessors=node.accessors,
+                                              child=node.child,
+                                              parent=parent))
+        else:
+            node = parent.internalPointer()
+            return self.createIndex(row, column,
+                                    IndexNode(object=node.
         else:
             return QtCore.QModelIndex()
-
+    
+    # @ensureValid(1)
     def parent(self, child):
-        return QtCore.QModelIndex()
+        if child.isValid():
+            return child.internalPointer().parent
+        else:
+            return QtCore.QModelIndex()
 
     def data(self, index, role = Qt.DisplayRole):
         if index.isValid() and role == Qt.DisplayRole:
@@ -59,8 +107,6 @@ class ObjectListModel (QtCore.QAbstractItemModel):
             return self._lst[i]
         else:
             return None
-
-    
 
     def flags(self, index):
         if index.isValid():
@@ -99,10 +145,14 @@ class AssistentenTabelle (EinfacheTabelle):
         EinfacheTabelle.__init__(
             self,
             ObjectListModel(
-                daten.assistenten,
-                [["Name", Assistent.get_name],
-                 ["# Gruppen", Assistent.get_bedarf],
-                 ]))
+                ["Name", "# Gruppen"],
+                lambda x: daten.assistenten,
+                [Assistent.get_name,
+                 Assistent.get_bedarf],
+                (Assistent.get_wuensche,
+                 [Wunsch.get_taetigkeit])
+                )
+            )
 
 class TaetigkeitenTabelle (EinfacheTabelle):
 
@@ -112,11 +162,13 @@ class TaetigkeitenTabelle (EinfacheTabelle):
         EinfacheTabelle.__init__(
             self,
             ObjectListModel(
-                daten.taetigkeiten,
-                [["Titel", Taetigkeit.get_titel],
-                 ["Dozent", Taetigkeit.get_dozent],
-                 ["# Gruppen", Taetigkeit.get_bedarf],
-                 ]))
+                ["Titel", "Dozent", "# Gruppen"],
+                lambda x: daten.taetigkeiten,
+                [Taetigkeit.get_titel,
+                 Taetigkeit.get_dozent,
+                 Taetigkeit.get_bedarf],
+                )
+            )
 
                           
 # Datenerfassungsansicht
@@ -257,3 +309,9 @@ class TaetigkeitEntryUi (ModelEntryUi):
         ModelEntryUi.__init__(self, daten.taetigkeiten, TaetigkeitenTabelle,
                               forms.TaetigkeitEntry, forms.TaetigkeitEdit)
 
+def gt(f, i):
+    def g(x):
+        if x >= i:
+            print "Hallo"
+        return f(x)
+    return g
