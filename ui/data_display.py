@@ -15,9 +15,25 @@ from collections import namedtuple
 class InvalidTreeAdress:
     pass
 
-AccessorNode = namedtuple("AccessorNode", "list accessors child")
+class AccessorNode (QObject):
 
-IndexNode = namedtuple("IndexNode", "object accessors child parent")
+    def __init__(self, lst, accessors, child=None):
+        QObject.__init__(self)
+        self.list      = lst
+        self.accessors = accessors
+        self.child     = child
+
+class IndexNode (QObject):
+
+    def __init__(self, obj, accessors, child, parent):
+        QObject.__init__(self)
+        self.object    = obj
+        self.accessors = accessors
+        self.child     = child
+        self.parent    = parent
+
+def invalid_index():
+    return QtCore.QModelIndex()
 
 class ObjectListModel (QtCore.QAbstractItemModel):
     """
@@ -26,91 +42,122 @@ class ObjectListModel (QtCore.QAbstractItemModel):
 
     def __init__(self, header, *tree):
         QtCore.QAbstractItemModel.__init__(self)
+        self._object_store = []
         self._header = header
         def transform_tree(t):
-            if t:
-                if len(t) < 3:
-                    t.append(None)
-                else:
-                    t[2] = transform_tree(t[2])
-                return AccessorNode._make(t)
+            if len(t) >= 3:
+                return AccessorNode(t[0], t[1], transform_tree(t[2]))
             else:
-                return None
+                return AccessorNode(*t)
         self.accessor_tree = transform_tree(list(tree))
 
+    def _set_by_index(self, obj):
+        l = len(self._object_store)
+        self._object_store.append(obj)
+        return l
 
-    def rowCount(self, parent = QtCore.QModelIndex()):
+    def _get_by_index(self, index):
+        nr = index.internalPointer()
+        if isinstance(nr, int):
+            return self._object_store[nr]
+        else:
+            return IndexNode(obj=None, accessors=[], child=None, parent=invalid_index())
+
+
+    def rowCount(self, parent = invalid_index()):
+        print "rowcount"
         if not parent.isValid():
             # An der Wurzel
             lst = self.accessor_tree.list(None)
             return len(lst)
         elif parent.child:
             # An einem Knoten mit Kindchen
-            node = parent.internalPointer()
+            node = self._get_by_index(parent)
             lst = node.child.list(node.object)
             return len(lst)
         else:
             return 0
 
-    def columnCount(self, parent = QtCore.QModelIndex()):
+    def columnCount(self, parent = invalid_index()):
+        print "colcount"
         if not parent.isValid():
+            print "root"
             node = self.accessor_tree
             return len(node.accessors)
-        elif parent.child:
-            node = parent.internalPointer()
-            return len(node.accessors)
         else:
-            return 0
+            print "Row", parent.row(), "Col", parent.column()
+            print "before intpoint"
+            node = self._get_by_index(parent)
+            print "after intpoint"
+            print node
+            print "after print node"
+            if node and node.child:
+                print "non-root"
+                node = self._get_by_index(parent)
+                print "node:",
+                print node
+                return len(node.accessors)
+            else:
+                return 0
 
     # @ensureValid(3)
-    def index(self, row, column, parent = QtCore.QModelIndex()):
+    def index(self, row, column, parent = invalid_index()):
+        print "index", row, column
         if not parent.isValid():
+            print "invalid"
             # An der Wurzel
             node = self.accessor_tree
             return self.createIndex(row, column,
-                                    IndexNode(object=node.list(True)[row],
-                                              accessors=node.accessors,
-                                              child=node.child,
-                                              parent=parent))
+                                    self._set_by_index(
+                                        IndexNode(obj=node.list(True)[row],
+                                                  accessors=node.accessors,
+                                                  child=node.child,
+                                                  parent=parent)))
         else:
-            node = parent.internalPointer() # this is an IndexNode
+            print "valid"
+            node = self._get_by_index(parent) # this is an IndexNode
             if node.child and parent.column() == 0: # either is None or an AccessorNode
                 return self.createIndex(row, column,
-                                    IndexNode(object=node.child.list(node.object)[row],
-                                              accessors=node.child.accessors,
-                                              child=node.child.child,
-                                              parent=parent))
+                                        self._set_by_index(
+                                            IndexNode(obj=node.child.list(node.object)[row],
+                                                      accessors=node.child.accessors,
+                                                      child=node.child.child,
+                                                      parent=parent)))
             else:
-                return QtCore.QModelIndex()
+                return invalid_index()
     
     # @ensureValid(1)
     def parent(self, child):
+        print "parent"
         if child.isValid():
-            return child.internalPointer().parent
+            return self._get_by_index(child).parent
         else:
-            return QtCore.QModelIndex()
+            return invalid_index()
 
     def data(self, index, role = Qt.DisplayRole):
+        print "data"
         if index.isValid() and role == Qt.DisplayRole:
-            node = index.internalPointer()
+            node = self._get_by_index(index)
             return node.accessors[index.column()](node.object)
         else:
             return None
 
     def data_raw(self, index):
         if index.isValid():
-            node = index.internalPointer()
+            node = self._get_by_index(index)
             return node.object
         else:
             return None
 
     def flags(self, index):
+        print "flags"
         if index.isValid():
             return Qt.ItemIsEnabled | Qt.ItemIsSelectable
         else:
             return 0
 
     def headerData(self, section, orientation, role = Qt.DisplayRole):
+        print "header"
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return self._header[section]
         else:
@@ -120,7 +167,7 @@ class ObjectListModel (QtCore.QAbstractItemModel):
     def attach_collection(self, collector):
         # @pyqtSlot()
         # def update():
-        #     self.dataChanged.emit(QtCore.QModelIndex(), QtCore.QModelIndex())
+        #     self.dataChanged.emit(invalid_index(), invalid_index())
         # collector.change_signal.connect(update)
         pass
     
