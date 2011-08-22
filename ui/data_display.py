@@ -23,17 +23,17 @@ class AccessorNode (QObject):
         self.accessors = accessors
         self.child     = child
 
-class IndexNode (QObject):
+class CustomModelIndex (QtCore.QModelIndex):
 
-    def __init__(self, obj, accessors, child, parent):
-        QObject.__init__(self)
+    def __init__(self, index, obj, accessors, child, parent):
+        QtCore.QModelIndex.__init__(index)
         self.object    = obj
         self.accessors = accessors
         self.child     = child
         self.parent    = parent
 
-def invalid_index():
-    return QtCore.QModelIndex()
+def is_nice_index(index):
+    return isinstance(index, CustomModelIndex)
 
 class ObjectListModel (QtCore.QAbstractItemModel):
     """
@@ -42,8 +42,6 @@ class ObjectListModel (QtCore.QAbstractItemModel):
 
     def __init__(self, header, *tree):
         QtCore.QAbstractItemModel.__init__(self)
-        self._object_store = []
-        self._store_lock = QtCore.QReadWriteLock()
         self._header = header
         def transform_tree(t):
             if len(t) >= 3:
@@ -52,109 +50,83 @@ class ObjectListModel (QtCore.QAbstractItemModel):
                 return AccessorNode(*t)
         self.accessor_tree = transform_tree(list(tree))
 
-    def _set_by_index(self, obj):
-        self._store_lock.lockForWrite()
-        l = len(self._object_store)
-        self._object_store.append(obj)
-        self._store_lock.unlock()
-        return l
-
-    def _get_by_index(self, index):
-        print "intpoint"
-        print index.isValid()
-        nr = index.internalPointer()
-        print "have it"
-        self._store_lock.lockForRead()
-        if isinstance(nr, int):
-            obj = self._object_store[nr]
-        else:
-            obj = None
-        self._store_lock.unlock()
-        return obj
-
-
-    def rowCount(self, parent = invalid_index()):
-        print "rowcount"
-        if not parent.isValid():
-            print "root"
-            # An der Wurzel
-            lst = self.accessor_tree.list(None)
-            return len(lst)
-        elif parent.child:
-            print "non-root"
-            # An einem Knoten mit Kindchen
-            node = self._get_by_index(parent)
-            print "have node"
-            if node and node.child:
-                print "apply list"
-                lst = node.child.list(node.object)
-                print "return list"
-                return len(lst)
-        return 0
-
-    def columnCount(self, parent = invalid_index()):
-        print "colcount"
-        if not parent.isValid():
-            node = self.accessor_tree
-            return len(node.accessors)
-        else:
-            node = self._get_by_index(parent)
-            if node and node.child:
-                node = self._get_by_index(parent)
-                print node
-                return len(node.accessors)
-            else:
-                return 0
-
-    # @ensureValid(3)
-    def index(self, row, column, parent = invalid_index()):
-        print "index", row, column
-        if not parent.isValid():
-            print "invalid"
-            # An der Wurzel
-            node = self.accessor_tree
-            return self.createIndex(row, column,
-                                    self._set_by_index(
-                                        IndexNode(obj=node.list(True)[row],
-                                                  accessors=node.accessors,
-                                                  child=node.child,
-                                                  parent=parent)))
-        else:
-            print "valid"
-            node = self._get_by_index(parent) # this is an IndexNode
-            if node.child and parent.column() == 0: # either is None or an AccessorNode
-                return self.createIndex(row, column,
-                                        self._set_by_index(
-                                            IndexNode(obj=node.child.list(node.object)[row],
-                                                      accessors=node.child.accessors,
-                                                      child=node.child.child,
-                                                      parent=parent)))
-            else:
-                return invalid_index()
     
-    # @ensureValid(1)
+    def invalid_index(self):
+        index = CustomModelIndex(index     = QtCore.QModelIndex(),
+                                 obj       = None,
+                                 accessors = [],
+                                 child     = self.accessor_tree,
+                                 parent    = None)
+        index.parent = index 
+        return index
+
+    def valid_index(self, row, column, obj, accessors, child, parent):
+        index = CustomModelIndex(index     = self.createIndex(row, column),
+                                 obj       = obj,
+                                 accessors = accessors,
+                                 child     = child,
+                                 parent    = parent)
+        return index
+
+    def rowCount(self, parent = None):
+        if not parent:
+            parent = self.invalid_index()
+        print "rowcount"
+        if is_nice_index(parent) and parent.child:
+            return len(parent.child.list(parent.object))
+        else:
+            return 0
+        
+    def columnCount(self, parent = None):
+        if not parent:
+            parent = self.invalid_index()
+        print "colcount"
+        if is_nice_index(parent) and parent.child:
+            return len(parent.child.accessors)
+        else:
+            return 0
+    
     def parent(self, child):
         print "parent"
-        if child.isValid():
-            node = self._get_by_index(child)
-            if node:
-                return node.parent
-        return invalid_index()
-
+        if is_nice_index(child) and child.parent:
+            return child.parent
+        else:
+            return self.invalid_index()
+        
     def data(self, index, role = Qt.DisplayRole):
         print "data"
-        if index.isValid() and role == Qt.DisplayRole:
-            node = self._get_by_index(index)
-            if node:
-                return node.accessors[index.column()](node.object)
-        return None
+        if (is_nice_index(index) and
+            index.isValid() and
+            role == Qt.DisplayRole):
+            return index.accessors[index.column()](index.obj)
+        else:
+            return None
 
     def data_raw(self, index):
-        if index.isValid():
-            node = self._get_by_index(index)
-            if node:
-                return node.object
-        return None
+        if (is_nice_index(index) and
+            index.isValid() and
+            role == Qt.DisplayRole):
+            return index.obj
+        else:
+            return None
+
+    def index(self, row, column, parent = None):
+        if not parent:
+            parent = self.invalid_index()
+        print "index", row, column
+        if not is_nice_index(parent):
+            # Denke, dass wir an der Wurzel sind.
+            parent = self.invalid_index()
+        if parent.child:
+            lst = parent.child.list(parent.obj)
+            return self.valid_index(row       = row,
+                                    column    = column,
+                                    obj       = lst[row],
+                                    accessors = parent.child.accessors,
+                                    child     = parent.child.child,
+                                    parent    = parent)
+        else:
+            raise InvalidTreeAdress
 
     def flags(self, index):
         print "flags"
