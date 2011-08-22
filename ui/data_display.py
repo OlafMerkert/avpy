@@ -43,6 +43,7 @@ class ObjectListModel (QtCore.QAbstractItemModel):
     def __init__(self, header, *tree):
         QtCore.QAbstractItemModel.__init__(self)
         self._object_store = []
+        self._store_lock = QtCore.QReadWriteLock()
         self._header = header
         def transform_tree(t):
             if len(t) >= 3:
@@ -52,49 +53,54 @@ class ObjectListModel (QtCore.QAbstractItemModel):
         self.accessor_tree = transform_tree(list(tree))
 
     def _set_by_index(self, obj):
+        self._store_lock.lockForWrite()
         l = len(self._object_store)
         self._object_store.append(obj)
+        self._store_lock.unlock()
         return l
 
     def _get_by_index(self, index):
+        print "intpoint"
+        print index.isValid()
         nr = index.internalPointer()
+        print "have it"
+        self._store_lock.lockForRead()
         if isinstance(nr, int):
-            return self._object_store[nr]
+            obj = self._object_store[nr]
         else:
-            return IndexNode(obj=None, accessors=[], child=None, parent=invalid_index())
+            obj = None
+        self._store_lock.unlock()
+        return obj
 
 
     def rowCount(self, parent = invalid_index()):
         print "rowcount"
         if not parent.isValid():
+            print "root"
             # An der Wurzel
             lst = self.accessor_tree.list(None)
             return len(lst)
         elif parent.child:
+            print "non-root"
             # An einem Knoten mit Kindchen
             node = self._get_by_index(parent)
-            lst = node.child.list(node.object)
-            return len(lst)
-        else:
-            return 0
+            print "have node"
+            if node and node.child:
+                print "apply list"
+                lst = node.child.list(node.object)
+                print "return list"
+                return len(lst)
+        return 0
 
     def columnCount(self, parent = invalid_index()):
         print "colcount"
         if not parent.isValid():
-            print "root"
             node = self.accessor_tree
             return len(node.accessors)
         else:
-            print "Row", parent.row(), "Col", parent.column()
-            print "before intpoint"
             node = self._get_by_index(parent)
-            print "after intpoint"
-            print node
-            print "after print node"
             if node and node.child:
-                print "non-root"
                 node = self._get_by_index(parent)
-                print "node:",
                 print node
                 return len(node.accessors)
             else:
@@ -130,24 +136,25 @@ class ObjectListModel (QtCore.QAbstractItemModel):
     def parent(self, child):
         print "parent"
         if child.isValid():
-            return self._get_by_index(child).parent
-        else:
-            return invalid_index()
+            node = self._get_by_index(child)
+            if node:
+                return node.parent
+        return invalid_index()
 
     def data(self, index, role = Qt.DisplayRole):
         print "data"
         if index.isValid() and role == Qt.DisplayRole:
             node = self._get_by_index(index)
-            return node.accessors[index.column()](node.object)
-        else:
-            return None
+            if node:
+                return node.accessors[index.column()](node.object)
+        return None
 
     def data_raw(self, index):
         if index.isValid():
             node = self._get_by_index(index)
-            return node.object
-        else:
-            return None
+            if node:
+                return node.object
+        return None
 
     def flags(self, index):
         print "flags"
