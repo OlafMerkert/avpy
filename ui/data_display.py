@@ -140,7 +140,7 @@ class ObjectListModel (QtCore.QAbstractItemModel):
 
     def data_raw(self, index):
         index = self.ensure_nice_index(index)
-        if index.isValid() and role == Qt.DisplayRole:
+        if index.isValid():
             return index.object
         else:
             return None
@@ -174,11 +174,10 @@ class ObjectListModel (QtCore.QAbstractItemModel):
     # TODO Benachrichtigung über Änderungen
 
     def attach_collection(self, collector):
-        # @pyqtSlot()
-        # def update():
-        #     self.dataChanged.emit(invalid_index(), invalid_index())
-        # collector.change_signal.connect(update)
-        pass
+        @pyqtSlot()
+        def update():
+            self.reset()
+        collector.add_changed_slot(update)
     
 # TODO Das hier sollte noch verbessert werden können (Zeige
 # Assistenten zu Vorlesungen und umgekehrt ...)
@@ -347,7 +346,7 @@ class ModelEntryUi (EntryUi):
         @pyqtSlot(object)
         def do_delete(obj):
             self.collector.remove(obj)
-            daten.save() # TODO
+            self.collector.changed()
             print self.collector # TODO
         self.neu_signal.connect(show_new)
         self.edit_signal.connect(show_edit)
@@ -369,3 +368,6 @@ class TaetigkeitEntryUi (ModelEntryUi):
     def __init__(self):
         ModelEntryUi.__init__(self, daten.taetigkeiten, TaetigkeitenTabelle,
                               forms.TaetigkeitEntry, forms.TaetigkeitEdit)
+
+# TODO Fokusoptimierung beim Aufrufen der Dialoge
+# TODO Fokusoptimierung innerhalb der Dialoge

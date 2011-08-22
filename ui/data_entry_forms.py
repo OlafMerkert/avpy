@@ -26,8 +26,7 @@ class AssistentEntry (EntryFormDialog):
             bedarf = data["# Gruppen"],
             )
         daten.assistenten.add(a)
-        daten.assistenten.notify_changes()
-        daten.save() # TODO
+        daten.assistenten.changed()
         
 class AssistentEdit (AssistentEntry):
 
@@ -44,8 +43,7 @@ class AssistentEdit (AssistentEntry):
     def new_assistent(self, data):
         self._ass._name   = data["Name"]
         self._ass._bedarf = Bound(data["# Gruppen"])
-        daten.assistenten.notify_changes()
-        daten.save() # TODO
+        daten.assistenten.changed()
 
 # ----------------------------------------------------------------------
 
@@ -70,8 +68,7 @@ class TaetigkeitEntry (EntryFormDialog):
             bereich = data["Bereich"],
             )
         daten.taetigkeiten.add(t)
-        daten.taetigkeiten.notify_changes()
-        daten.save() # TODO
+        daten.taetigkeiten.changed()
     
 class TaetigkeitEdit (TaetigkeitEntry):
 
@@ -92,5 +89,4 @@ class TaetigkeitEdit (TaetigkeitEntry):
         self._taet._dozent  = data["Dozent"]
         self._taet._bedarf  = Bound(data["# Gruppen"])
         self._taet._bereich = data["Bereich"]
-        daten.taetigkeiten.notify_changes()
-        daten.save() # TODO
+        daten.taetigkeiten.changed()

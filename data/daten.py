@@ -4,10 +4,10 @@ from __future__ import with_statement
 
 __author__ = "Olaf Merkert"
 
-
 from os.path import exists
 import cPickle as pickle
 import models
+from PyQt4.QtCore import QObject, pyqtSlot, pyqtSignal
 
 # Listen für die Speicherung der Vorlesungen und Assistenten sowie
 # ihrer Wünsche
@@ -18,9 +18,6 @@ class Collector(object):
     Halte eine Liste/Menge von Objekten vor.  Die Schnittstelle nach
     außen ist wesentlich die einer normalen Liste.
     """
-
-    def notify_changes(self):
-        pass
     
     def __init__(self):
         self._list = []
@@ -52,8 +49,38 @@ class Collector(object):
     def __repr__(self):
         return "Collector: " + str(self._list)
 
+    # Verarbeitung von Änderungen an den Daten/Struktur des Collectors
+    def listener(self):
+        return listeners[self]
+
+    def changed(self):
+        self.listener().changed()
+
+    def add_changed_slot(self, slot):
+        self.listener().add_changed_slot(slot)
+
+class ChangeListener (QObject):
+
+    change_signal = pyqtSignal()
+
+    def __init__(self, acro, collector):
+        QObject.__init__(self)
+        self.acro      = acro
+        self.collector = collector
+
+    def changed(self):
+        self.change_signal.emit()
+
+    def add_changed_slot(self, slot):
+        self.change_signal.connect(slot)
+
 taetigkeiten = Collector()
 assistenten  = Collector()
+
+listeners = {
+    taetigkeiten : ChangeListener("taet", taetigkeiten),
+    assistenten  : ChangeListener("ass",  assistenten),
+    }
 
 # Ein paar hartkodierte Einstellungen
 bereiche = [
@@ -78,14 +105,22 @@ def load(store = default_store):
     if exists(store):
         with open(store, 'rb') as input:
             data = pickle.load(input)
-            taetigkeiten.load(get_if_present("taet", data))
-            assistenten.load(get_if_present("ass", data))
+            for coll, ch_slot in listeners.iteritems():
+                coll.load(get_if_present(ch_slot.acro, data))
     else:
-        taetigkeiten.load([])
-        assistenten.load([])
+        for coll, ch_slot in listeners.iteritems():
+            coll.load([])
 
 def save(store = default_store):
     with open(store, 'wb') as output:
-        pickle.dump({"taet" : taetigkeiten.save(),
-                     "ass"  : assistenten.save(),
-             }, output)
+        pickle.dump(
+            dict([(ch_slot.acro, coll.save())
+                  for coll, ch_slot in listeners.iteritems()]),
+            output)
+
+@pyqtSlot()
+def on_changed():
+    save()
+
+taetigkeiten.add_changed_slot(on_changed)
+assistenten.add_changed_slot(on_changed)
