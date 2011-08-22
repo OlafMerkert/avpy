@@ -6,7 +6,7 @@ __author__ = "Olaf Merkert"
 from PyQt4.QtCore import QObject, pyqtSignal, pyqtSlot
 from data_entry import EntryFormDialog
 from inputs import StringInput, IntegerInput, SelectInput, generate_labels
-from data.models import Assistent, Taetigkeit, Bound
+from data.models import Assistent, Taetigkeit, Bound, Wunsch
 from data import daten
 
 # ----------------------------------------------------------------------
@@ -90,3 +90,60 @@ class TaetigkeitEdit (TaetigkeitEntry):
         self._taet._bedarf  = Bound(data["# Gruppen"])
         self._taet._bereich = data["Bereich"]
         daten.taetigkeiten.changed()
+
+# ----------------------------------------------------------------------
+
+wunsch_staerken = [["W1", 1],
+                   ["W2", 2],
+                   ["W3", 3],
+                   ["W4", 4]]
+
+class WunschEntry (EntryFormDialog):
+
+    def __init__(self, assistent):
+        EntryFormDialog.__init__(self, u"Wunsch von {0} angeben".format(assistent.get_name()),
+                                 [["Vorlesung", SelectInput(
+                                     [[v.get_name(), v] for v in daten.taetigkeiten])],
+                                  [u"Präferenz", SelectInput(wunsch_staerken)]])
+        self._ass = assistent
+        self.new_data_signal.connect(self.new_wunsch)
+
+    @pyqtSlot(dict)
+    def new_wunsch(self, data):
+        self._ass.wuenschen(taetigkeit = data["Vorlesung"],
+                            staerke    = data[u"Präferenz"])
+        daten.assistenten.changed()
+
+class WunschEdit (EntryFormDialog):
+
+    def __init__(self, wunsch):
+        EntryFormDialog.__init__(self, u"Wunsch von {0} ändern".format(assistent.get_name()),
+                                 [["Vorlesung", SelectInput(
+                                     [[v.get_name(), v] for v in daten.taetigkeiten],
+                                     editable=False)],
+                                  [u"Präferenz", SelectInput(wunsch_staerken)]])
+        self._wunsch = wunsch
+        self.hide_next()
+        self.load({"Vorlesung"  : wunsch._taetigkeit,
+                   u"Präferenz" : wunsch._staerke})
+        self.new_data_signal.connect(self.edit_wunsch)
+
+    @pyqtSlot(dict)
+    def edit_wunsch(self, data):
+        self._wunsch._staerke = data[u"Präferenz"]
+        daten.assistenten.changed()
+                   
+
+# ----------------------------------------------------------------------
+
+entry_forms = {
+    Assistent  : AssistentEntry,
+    Taetigkeit : TaetigkeitEntry,
+    Wunsch     : WunschEntry,
+    }
+
+edit_forms = {
+    Assistent  : AssistentEdit,
+    Taetigkeit : TaetigkeitEdit,
+    Wunsch     : WunschEdit,
+    }
