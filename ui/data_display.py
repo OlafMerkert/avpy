@@ -6,7 +6,7 @@ __author__ = "Olaf Merkert"
 from PyQt4.QtCore import QObject, pyqtSignal, pyqtSlot
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import Qt
-from common import Unimplemented
+from common import Unimplemented, LockableRingBuffer
 import data.daten as daten
 from data.models import Assistent, Taetigkeit, Wunsch
 import ui.data_entry_forms as forms
@@ -23,17 +23,36 @@ class AccessorNode (QObject):
         self.accessors = accessors
         self.child     = child
 
-class CustomModelIndex (QtCore.QModelIndex):
+class CustomModelIndex (object):
 
     def __init__(self, index, obj, accessors, child, parent):
-        QtCore.QModelIndex.__init__(index)
+        self.index     = index
         self.object    = obj
         self.accessors = accessors
         self.child     = child
         self.parent    = parent
+        self.level     = 0
 
-def is_nice_index(index):
-    return isinstance(index, CustomModelIndex)
+    def isValid(self):
+        return self.index.isValid()
+
+    def row(self):
+        return self.index.row()
+
+    def column(self):
+        return self.index.column()
+
+empty_accessor = lambda x: ""
+
+def to_length(lst, length, fill=None):
+    l = length - len(lst)
+    if l < 0:
+        return lst[:length]
+    else:
+        new_lst = lst[:]
+        for i in xrange(l):
+            new_lst.append(fill)
+        return new_lst
 
 class ObjectListModel (QtCore.QAbstractItemModel):
     """
@@ -42,101 +61,112 @@ class ObjectListModel (QtCore.QAbstractItemModel):
 
     def __init__(self, header, *tree):
         QtCore.QAbstractItemModel.__init__(self)
+        self._buffer = LockableRingBuffer()
         self._header = header
+        l = len(tree[1])
         def transform_tree(t):
+            # Die Accessorenlisten sollten immmer die selbe Länge haben.
+            a = to_length(t[1], length=l, fill=empty_accessor)
             if len(t) >= 3:
-                return AccessorNode(t[0], t[1], transform_tree(t[2]))
+                return AccessorNode(t[0], a, transform_tree(t[2]))
             else:
-                return AccessorNode(*t)
+                return AccessorNode(t[0], a)
         self.accessor_tree = transform_tree(list(tree))
 
     
-    def invalid_index(self):
-        index = CustomModelIndex(index     = QtCore.QModelIndex(),
-                                 obj       = None,
-                                 accessors = [],
-                                 child     = self.accessor_tree,
-                                 parent    = None)
-        index.parent = index 
+    def invalid_index(self, custom = True, index = QtCore.QModelIndex()):
+        if custom:
+            index = CustomModelIndex(index     = index,
+                                     obj       = None,
+                                     accessors = [],
+                                     child     = self.accessor_tree,
+                                     parent    = None)
+            index.parent = index 
         return index
 
     def valid_index(self, row, column, obj, accessors, child, parent):
-        index = CustomModelIndex(index     = self.createIndex(row, column),
+        i = self._buffer.reserve()
+        mindex = self.createIndex(row, column, i)
+        index = CustomModelIndex(index     = mindex,
                                  obj       = obj,
                                  accessors = accessors,
                                  child     = child,
                                  parent    = parent)
+        index.level = 1 + parent.level
+        self._buffer[i] = index
         return index
 
-    def rowCount(self, parent = None):
-        if not parent:
-            parent = self.invalid_index()
-        print "rowcount"
-        if is_nice_index(parent) and parent.child:
+    def _data2index(self, data):
+        pass
+
+    def _index2data(self, index):
+        pass
+
+    def ensure_nice_index(self, index):
+        if index.isValid():
+            i = index.internalId()
+            return self._buffer[i]
+        else:
+            return self.invalid_index(index=index)
+
+    def rowCount(self, parent = QtCore.QModelIndex()):
+        parent = self.ensure_nice_index(parent)
+        if parent.child:
             return len(parent.child.list(parent.object))
         else:
             return 0
         
-    def columnCount(self, parent = None):
-        if not parent:
-            parent = self.invalid_index()
-        print "colcount"
-        if is_nice_index(parent) and parent.child:
+    def columnCount(self, parent = QtCore.QModelIndex()):
+        parent = self.ensure_nice_index(parent)
+        if parent.child:
             return len(parent.child.accessors)
         else:
             return 0
     
     def parent(self, child):
-        print "parent"
-        if is_nice_index(child) and child.parent:
-            return child.parent
+        child = self.ensure_nice_index(child)
+        if child.parent:
+            return child.parent.index
         else:
-            return self.invalid_index()
+            return self.invalid_index(False)
         
     def data(self, index, role = Qt.DisplayRole):
-        print "data"
-        if (is_nice_index(index) and
-            index.isValid() and
-            role == Qt.DisplayRole):
-            return index.accessors[index.column()](index.obj)
+        index = self.ensure_nice_index(index)
+        if index.isValid() and role == Qt.DisplayRole:
+            d = index.accessors[index.column()](index.object)
+            return d
         else:
             return None
 
     def data_raw(self, index):
-        if (is_nice_index(index) and
-            index.isValid() and
-            role == Qt.DisplayRole):
-            return index.obj
+        index = self.ensure_nice_index(index)
+        if index.isValid() and role == Qt.DisplayRole:
+            return index.object
         else:
             return None
 
-    def index(self, row, column, parent = None):
-        if not parent:
-            parent = self.invalid_index()
-        print "index", row, column
-        if not is_nice_index(parent):
-            # Denke, dass wir an der Wurzel sind.
-            parent = self.invalid_index()
+    def index(self, row, column, parent = QtCore.QModelIndex()):
+        parent = self.ensure_nice_index(parent)
         if parent.child:
-            lst = parent.child.list(parent.obj)
-            return self.valid_index(row       = row,
-                                    column    = column,
-                                    obj       = lst[row],
-                                    accessors = parent.child.accessors,
-                                    child     = parent.child.child,
-                                    parent    = parent)
+            lst = parent.child.list(parent.object)
+            index = self.valid_index(row       = row,
+                                     column    = column,
+                                     obj       = lst[row],
+                                     accessors = parent.child.accessors,
+                                     child     = parent.child.child,
+                                     parent    = parent)
+            return index.index
         else:
             raise InvalidTreeAdress
 
     def flags(self, index):
-        print "flags"
+        # TODO invalid results ?
         if index.isValid():
             return Qt.ItemIsEnabled | Qt.ItemIsSelectable
         else:
             return 0
 
     def headerData(self, section, orientation, role = Qt.DisplayRole):
-        print "header"
         if orientation == Qt.Horizontal and role == Qt.DisplayRole:
             return self._header[section]
         else:
@@ -339,10 +369,3 @@ class TaetigkeitEntryUi (ModelEntryUi):
     def __init__(self):
         ModelEntryUi.__init__(self, daten.taetigkeiten, TaetigkeitenTabelle,
                               forms.TaetigkeitEntry, forms.TaetigkeitEdit)
-
-def gt(f, i):
-    def g(x):
-        if x >= i:
-            print "Hallo"
-        return f(x)
-    return g
