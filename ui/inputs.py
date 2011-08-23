@@ -74,7 +74,8 @@ class SelectInput(QtGui.QComboBox, InputBase):
     
     def __init__(self, underlying_list = [], *parms):
         QtGui.QComboBox.__init__(self, *parms)
-        self._underlying = underlying_list
+        self._underlying      = underlying_list
+        self._underlying_data = [i for l,i in underlying_list]
         for l,i in underlying_list:
             self.addItem(l, i)
 
@@ -85,7 +86,7 @@ class SelectInput(QtGui.QComboBox, InputBase):
         if value == None:
             self.setCurrentIndex(0)
         else:
-            i = self.findData(value)
+            i = self._underlying_data.index(value)
             self.setCurrentIndex(i)
 
 def generate_labels(lst):

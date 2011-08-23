@@ -190,11 +190,18 @@ class EinfacheTabelle (QtGui.QTreeView):
         QtGui.QTreeView.__init__(self)
         self.setModel(model)
         self.setupUi()
+        model.modelReset.connect(self.expand_again)
 
     def setupUi(self):
         self.setHeaderHidden(False)
+        self.expandAll()
         for i in range(self.model().columnCount()):
             self.resizeColumnToContents(i)
+
+    # Auch nach Model reset wieder expandieren
+    @pyqtSlot()
+    def expand_again(self):
+        self.expandAll()
 
 
 class AssistentenTabelle (EinfacheTabelle):
@@ -208,7 +215,7 @@ class AssistentenTabelle (EinfacheTabelle):
                 [Assistent.get_name,
                  Assistent.get_bedarf],
                 [Assistent.get_wuensche,
-                 [Wunsch.get_taetigkeit]]
+                 [Wunsch.get_taetigkeit, Wunsch.get_staerke]]
                 )
             )
         self.model().attach_collection(daten.assistenten)
@@ -299,9 +306,9 @@ class EntryUi (QtGui.QWidget):
             button_layout.addWidget(b)
         button_layout.addStretch()
         # TODO Speichern/Laden Knöpfe ?
-        button_box = QtGui.QWidget()
-        button_box.setLayout(button_layout)
-        main_layout.addWidget(button_box)
+        self.button_box = QtGui.QWidget()
+        self.button_box.setLayout(button_layout)
+        main_layout.addWidget(self.button_box)
         self.setLayout(main_layout)
 
 
@@ -334,27 +341,36 @@ class ModelEntryUi (EntryUi):
         self.tabelle = tabelle()
         self.collector = collector
         self.layout().addWidget(self.tabelle)
+        # richte forms ein
+        self._entry_form = entry_form
+        self._edit_form = edit_form
         # richte slots ein
-        @pyqtSlot()
-        def show_new():
-            show_modal(entry_form())
-            print self.collector # TODO
-        @pyqtSlot(object)
-        def show_edit(obj):
-            show_modal(edit_form(obj))
-            print self.collector # TODO
-        @pyqtSlot(object)
-        def do_delete(obj):
-            self.collector.remove(obj)
-            self.collector.changed()
-            print self.collector # TODO
-        self.neu_signal.connect(show_new)
-        self.edit_signal.connect(show_edit)
-        self.del_signal.connect(do_delete)
-        
+        self.neu_signal.connect(self.show_new)
+        self.edit_signal.connect(self.show_edit)
+        self.del_signal.connect(self.do_delete)
+
+    def entry_form(self):
+        return self._entry_form()
+
+    def edit_form(self, obj):
+        return self._edit_form(obj)
+
+    @pyqtSlot()
+    def show_new(self):
+        show_modal(self.entry_form())
+
+    @pyqtSlot(object)
+    def show_edit(self, obj):
+        show_modal(self.edit_form(obj))
+
+    @pyqtSlot(object)
+    def do_delete(self, obj):
+        self.collector.remove(obj)
+        self.collector.changed()
+
     def get_selected(self):
         smodel  = self.tabelle.selectionModel()
-        model = self.tabelle.model()
+        model   = self.tabelle.model()
         return model.data_raw(smodel.currentIndex())
         
 class AssistentEntryUi (ModelEntryUi):
@@ -362,7 +378,27 @@ class AssistentEntryUi (ModelEntryUi):
     def __init__(self):
         ModelEntryUi.__init__(self, daten.assistenten, AssistentenTabelle,
                               forms.AssistentEntry, forms.AssistentEdit)
+        # Knopf zum Wünsche hinzufügen
+        wunsch_neu_button = QtGui.QPushButton("Neuer Wunsch")
+        @pyqtSlot()
+        def wunsch_neu_clicked():
+            ass = self.get_selected()
+            if isinstance(ass, Assistent):
+                show_modal(forms.WunschEntry(ass))
+        wunsch_neu_button.clicked.connect(wunsch_neu_clicked)
+        self.button_box.layout().insertWidget(1, wunsch_neu_button)
 
+    def edit_form(self, obj):
+        return forms.edit_forms[obj.__class__](obj)
+
+    @pyqtSlot(object)
+    def do_delete(self, obj):
+        if isinstance(obj, Wunsch):
+            obj._assistent._wuensche.remove(obj)
+            daten.assistenten.changed()
+        else:
+            ModelEntryUi.do_delete(self, obj)
+    
 class TaetigkeitEntryUi (ModelEntryUi):
 
     def __init__(self):

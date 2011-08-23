@@ -50,6 +50,23 @@ class Wunsch(object):
         self._taetigkeit = taetigkeit
         self._staerke = staerke
 
+    def __repr__(self):
+        return "{0} : {1} : W{2}".format(self._assistent.get_name(),
+                                         self._taetigkeit.get_titel(),
+                                         self._staerke)
+
+    def __eq__(self, other):
+        return (isinstance(other, Wunsch) and
+                self._assistent == other._assistent and
+                self._taetigkeit == other._taetigkeit)
+
+    def __hash__(self):
+        return (self._assistent.__hash__() ^ # xor
+                self._taetigkeit.__hash__())
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def zuweisen(self, tabelle):
         z = Zuweisung(self._assistent,
                       self._taetigkeit,
@@ -68,7 +85,7 @@ class Wunsch(object):
         return self._taetigkeit.get_titel()
 
     def get_staerke(self):
-        return self._staerke
+        return "W{0}".format(self._staerke)
     
 
 class Assistent(object):
@@ -96,7 +113,8 @@ class Assistent(object):
         return self._bedarf._upper
 
     def get_wuensche(self):
-        return self._wuensche
+        # sortiere nach staerke
+        return sorted(self._wuensche, key=lambda w: w._staerke)
     
 
 class Zuweisung(object):

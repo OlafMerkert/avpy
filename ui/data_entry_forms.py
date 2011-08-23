@@ -103,7 +103,7 @@ class WunschEntry (EntryFormDialog):
     def __init__(self, assistent):
         EntryFormDialog.__init__(self, u"Wunsch von {0} angeben".format(assistent.get_name()),
                                  [["Vorlesung", SelectInput(
-                                     [[v.get_name(), v] for v in daten.taetigkeiten])],
+                                     [[v.get_titel(), v] for v in daten.taetigkeiten])],
                                   [u"Präferenz", SelectInput(wunsch_staerken)]])
         self._ass = assistent
         self.new_data_signal.connect(self.new_wunsch)
@@ -117,11 +117,11 @@ class WunschEntry (EntryFormDialog):
 class WunschEdit (EntryFormDialog):
 
     def __init__(self, wunsch):
-        EntryFormDialog.__init__(self, u"Wunsch von {0} ändern".format(assistent.get_name()),
+        EntryFormDialog.__init__(self, u"Wunsch von {0} ändern".format(wunsch._assistent.get_name()),
                                  [["Vorlesung", SelectInput(
-                                     [[v.get_name(), v] for v in daten.taetigkeiten],
-                                     editable=False)],
+                                     [[v.get_titel(), v] for v in daten.taetigkeiten])],
                                   [u"Präferenz", SelectInput(wunsch_staerken)]])
+        self._inputs["Vorlesung"].setEnabled(False)
         self._wunsch = wunsch
         self.hide_next()
         self.load({"Vorlesung"  : wunsch._taetigkeit,
