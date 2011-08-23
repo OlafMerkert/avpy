@@ -13,6 +13,9 @@ class Bound(object):
         else:
             self._upper = lower
 
+    def within(self, number):
+        return (self._lower <= number <= self._upper)
+
 class Taetigkeit(object):
     """
     Jede Vorlesung und jedes Seminar benötigt eine gewisse Anzahl von
@@ -115,6 +118,9 @@ class Assistent(object):
     def get_wuensche(self):
         # sortiere nach staerke
         return sorted(self._wuensche, key=lambda w: w._staerke)
+
+    def wuensche(self):
+        return [w._taetigkeit for w in self._wuensche]
     
 
 class Zuweisung(object):
